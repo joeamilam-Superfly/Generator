@@ -31,6 +31,7 @@ exports.handler = async (event) => {
     if (p.has_phone === 'yes') query = query.not('phone', 'is', null);
     if (p.has_phone === 'no') query = query.is('phone', null);
     if (p.never_serviced === 'yes') query = query.is('last_service_date', null);
+    if (p.include_archived !== 'yes') query = query.eq('archived', false);
 
     // customer name search spans three columns, which needs an OR, built separately
     if (p.customer_search) {
