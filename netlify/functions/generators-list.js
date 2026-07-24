@@ -6,9 +6,10 @@ exports.handler = async (event) => {
 
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .from('generator_search_view')
-      .select('*')
+    const showArchived = (event.queryStringParameters || {}).include_archived === 'yes';
+    let query = supabase.from('generator_search_view').select('*');
+    if (!showArchived) query = query.eq('archived', false);
+    const { data, error } = await query
       .order('review_priority', { ascending: false, nullsFirst: false })
       .order('install_date', { ascending: false, nullsFirst: false });
 
