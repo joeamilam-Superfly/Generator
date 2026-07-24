@@ -86,7 +86,8 @@
   #login-screen button:hover, .btn:hover { opacity: 0.9; }
   #login-error { color: var(--danger); font-size: 13px; min-height: 18px; }
 
-  table { width: 100%; border-collapse: collapse; background: white; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .table-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; background: white; }
   th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--line); }
   th { background: #fafbfc; font-weight: 600; color: var(--ink-soft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; position: sticky; top: 0; z-index: 5; box-shadow: 0 1px 0 var(--line); }
   tr:last-child td { border-bottom: none; }
@@ -159,12 +160,14 @@
         <button class="btn" onclick="loadGenerators()">Refresh</button>
         <label style="font-size:13px; display:flex; align-items:center; gap:4px;"><input type="checkbox" id="filter-show-archived" onchange="loadGenerators()">Show archived</label>
       </div>
+      <div class="table-wrap">
       <table id="gen-table">
         <thead>
           <tr><th>Flag</th><th>Customer</th><th>Serial #</th><th>Model</th><th>Location</th><th>Install date</th><th>Last service</th></tr>
         </thead>
         <tbody id="gen-tbody"><tr><td colspan="7">Loading...</td></tr></tbody>
       </table>
+      </div>
     </div>
 
     <div id="search-panel" class="panel">
@@ -518,6 +521,7 @@ function renderSearchResults(results) {
     return;
   }
   resultsEl.innerHTML = `<p>${results.length} result${results.length === 1 ? '' : 's'}</p>
+    <div class="table-wrap">
     <table>
       <thead><tr><th>Flag</th><th>Customer</th><th>Serial #</th><th>Model</th><th>Address</th><th>Install date</th><th>Last service</th><th>Phone</th></tr></thead>
       <tbody>
@@ -535,7 +539,8 @@ function renderSearchResults(results) {
           </tr>`;
         }).join('')}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 function escapeHtml(str) {
