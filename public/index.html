@@ -215,13 +215,22 @@ function apiCall(path, opts = {}) {
 
 function doLogin() {
   TOKEN = document.getElementById('login-token').value;
-  apiCall('generators-list').then(() => {
+  fetch('/api/generators-list', { headers: { 'x-app-token': TOKEN } }).then(async r => {
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) {
+      document.getElementById('login-error').textContent = 'Incorrect access code.';
+      return;
+    }
+    if (!r.ok) {
+      document.getElementById('login-error').textContent = 'Server error: ' + (data.error || ('HTTP ' + r.status));
+      return;
+    }
     sessionStorage.setItem('gen_app_token', TOKEN);
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     loadGenerators();
   }).catch(err => {
-    document.getElementById('login-error').textContent = 'Incorrect access code.';
+    document.getElementById('login-error').textContent = 'Network error: ' + err.message;
   });
 }
 
