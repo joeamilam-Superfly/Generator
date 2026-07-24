@@ -382,15 +382,43 @@ function openDetail(id) {
   const g = GENERATORS.find(x => x.id === id);
   if (!g) return;
   const customerName = g.business_name || `${g.first_name || ''} ${g.last_name || ''}`.trim() || '(unknown)';
+  const v = (val) => val === null || val === undefined ? '' : val;
 
   document.getElementById('modal-body').innerHTML = `
     <h3>${escapeHtml(customerName)}</h3>
-    <p><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></p>
-    <p><b>Serial:</b> ${escapeHtml(g.serial_number || '—')} &nbsp; <b>ATS:</b> ${escapeHtml(g.ats_serial_number || '—')}</p>
-    <p><b>Model:</b> ${escapeHtml(g.model || '—')} &nbsp; <b>Install date:</b> ${g.install_date || '—'}</p>
-    <p><b>Location:</b> ${escapeHtml(g.location_address || '—')}</p>
-    <p><b>Last service:</b> ${g.last_service_date || 'Never recorded'} &nbsp; <b>Run hours:</b> ${g.run_hours != null ? g.run_hours : '—'}</p>
-    <p><b>Phone:</b> ${escapeHtml(g.phone || '—')}</p>
+    <p><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span>${g.archived ? ' <span class="badge" style="background:#e2e5e9;color:#52606d;">Archived</span>' : ''}</p>
+
+    <h4>Customer</h4>
+    <div class="field-grid">
+      <div class="field"><label>First name</label><input id="edit-first_name" value="${escapeHtml(v(g.first_name))}"></div>
+      <div class="field"><label>Last name</label><input id="edit-last_name" value="${escapeHtml(v(g.last_name))}"></div>
+    </div>
+    <div class="field"><label>Business name</label><input id="edit-business_name" value="${escapeHtml(v(g.business_name))}"></div>
+    <div class="field-grid">
+      <div class="field"><label>Phone</label><input id="edit-phone" value="${escapeHtml(v(g.phone))}"></div>
+      <div class="field"><label>City</label><input id="edit-city" value="${escapeHtml(v(g.city))}"></div>
+    </div>
+    <div class="field"><label>Generator location / address</label><input id="edit-address" value="${escapeHtml(v(g.location_address))}"></div>
+
+    <h4>Generator</h4>
+    <div class="field-grid">
+      <div class="field"><label>Serial number</label><input id="edit-serial_number" value="${escapeHtml(v(g.serial_number))}"></div>
+      <div class="field"><label>ATS serial number</label><input id="edit-ats_serial_number" value="${escapeHtml(v(g.ats_serial_number))}"></div>
+    </div>
+    <div class="field-grid">
+      <div class="field"><label>Model</label><input id="edit-model" value="${escapeHtml(v(g.model))}"></div>
+      <div class="field"><label>Install date</label><input type="date" id="edit-install_date" value="${escapeHtml(v(g.install_date))}"></div>
+    </div>
+    <div class="field-grid">
+      <div class="field"><label>Oil filter part</label><input id="edit-oil_filter_part" value="${escapeHtml(v(g.oil_filter_part))}"></div>
+      <div class="field"><label>Oil capacity</label><input id="edit-oil_capacity" value="${escapeHtml(v(g.oil_capacity))}"></div>
+    </div>
+    <div class="field"><label>Run hours</label><input type="number" id="edit-run_hours" value="${escapeHtml(v(g.run_hours))}"></div>
+
+    <button class="btn" onclick="saveProfile('${g.id}', '${g.customer_id || ''}', '${g.job_location_id || ''}')">Save profile</button>
+    <div id="profile-save-status" style="margin-top:8px; font-size:13px;"></div>
+
+    <p style="margin-top:14px;"><b>Last service:</b> ${g.last_service_date || 'Never recorded'}</p>
     ${g.review_notes ? `<p><b>Review notes:</b> ${escapeHtml(g.review_notes)}</p>` : ''}
 
     <hr>
@@ -441,6 +469,47 @@ function logWorkOrder(generatorId) {
   apiCall('work-orders-create', { method: 'POST', body: JSON.stringify(payload) })
     .then(() => { setStatus('Work order saved.', false); loadGenerators(); })
     .catch(err => setStatus(err.message, true));
+}
+
+function saveProfile(generatorId, customerId, jobLocationId) {
+  const val = (id) => { const el = document.getElementById(id); return el ? el.value : undefined; };
+  const payload = {
+    generator_id: generatorId,
+    customer_id: customerId || null,
+    job_location_id: jobLocationId || null,
+    generator_updates: {
+      serial_number: val('edit-serial_number'),
+      ats_serial_number: val('edit-ats_serial_number'),
+      model: val('edit-model'),
+      install_date: val('edit-install_date'),
+      oil_filter_part: val('edit-oil_filter_part'),
+      oil_capacity: val('edit-oil_capacity'),
+      run_hours: val('edit-run_hours'),
+    },
+    customer_updates: {
+      first_name: val('edit-first_name'),
+      last_name: val('edit-last_name'),
+      business_name: val('edit-business_name'),
+      phone: val('edit-phone'),
+      city: val('edit-city'),
+    },
+    location_updates: {
+      address: val('edit-address'),
+    },
+  };
+
+  const statusEl = document.getElementById('profile-save-status');
+  statusEl.textContent = 'Saving...';
+  apiCall('profile-update', { method: 'PATCH', body: JSON.stringify(payload) })
+    .then(() => {
+      statusEl.textContent = 'Saved.';
+      statusEl.style.color = '#1f5f5b';
+      loadGenerators();
+    })
+    .catch(err => {
+      statusEl.textContent = 'Error: ' + err.message;
+      statusEl.style.color = '#b3261e';
+    });
 }
 
 function archiveGenerator(generatorId, archive) {
