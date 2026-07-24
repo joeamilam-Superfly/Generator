@@ -157,6 +157,7 @@
         </select>
         <input type="text" id="filter-search" placeholder="Search name, serial, address..." oninput="renderList()">
         <button class="btn" onclick="loadGenerators()">Refresh</button>
+        <label style="font-size:13px; display:flex; align-items:center; gap:4px;"><input type="checkbox" id="filter-show-archived" onchange="loadGenerators()">Show archived</label>
       </div>
       <table id="gen-table">
         <thead>
@@ -297,7 +298,9 @@ function switchPanel(id, btn) {
 
 function loadGenerators() {
   document.getElementById('gen-tbody').innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
-  apiCall('generators-list').then(data => {
+  const showArchived = document.getElementById('filter-show-archived') && document.getElementById('filter-show-archived').checked;
+  const suffix = showArchived ? '?include_archived=yes' : '';
+  apiCall('generators-list' + suffix).then(data => {
     GENERATORS = data.generators;
     renderList();
   }).catch(err => {
@@ -358,9 +361,10 @@ function renderList() {
   tbody.innerHTML = rows.map(g => {
     const customerName = g.business_name || `${g.first_name || ''} ${g.last_name || ''}`.trim() || '(unknown)';
     const conflictColor = colorForConflictGroup(g.conflict_group_id);
-    const rowStyle = conflictColor ? ` style="background:${conflictColor.bg}; border-left:4px solid ${conflictColor.border};"` : '';
+    let rowStyle = conflictColor ? ` style="background:${conflictColor.bg}; border-left:4px solid ${conflictColor.border};"` : '';
+    if (g.archived) rowStyle = ' style="opacity:0.5; font-style:italic;"';
     return `<tr class="clickable"${rowStyle} onclick="openDetail('${g.id}')">
-      <td><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></td>
+      <td><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span>${g.archived ? ' <span class="badge" style="background:#e2e5e9;color:#52606d;">Archived</span>' : ''}</td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(g.serial_number || '—')}</td>
       <td>${escapeHtml(g.model || '—')}</td>
@@ -402,6 +406,16 @@ function openDetail(id) {
     <button class="btn" onclick="resolveFlag('${g.id}', true)">Mark resolved</button>
     <button class="btn" style="background:#52606d" onclick="resolveFlag('${g.id}', false)">Save note only, keep flagged</button>
     ` : ''}
+
+    <hr>
+    <h4>Archive or delete this record</h4>
+    <p style="font-size:12px; color:#52606d;">Archiving hides it from the active list but keeps everything (safe, reversible). Deleting is permanent and removes its service history too, use this only for a confirmed duplicate.</p>
+    ${g.archived
+      ? `<button class="btn" onclick="archiveGenerator('${g.id}', false)">Restore from archive</button>`
+      : `<div class="field"><label>Reason (optional)</label><input id="archive-reason"></div>
+         <button class="btn" style="background:#8a5a00" onclick="archiveGenerator('${g.id}', true)">Archive</button>`
+    }
+    <button class="btn" style="background:#b3261e" onclick="deleteGenerator('${g.id}')">Delete permanently</button>
     <div id="status-msg"></div>
   `;
   document.getElementById('detail-modal').classList.add('active');
@@ -423,6 +437,22 @@ function logWorkOrder(generatorId) {
   }
   apiCall('work-orders-create', { method: 'POST', body: JSON.stringify(payload) })
     .then(() => { setStatus('Work order saved.', false); loadGenerators(); })
+    .catch(err => setStatus(err.message, true));
+}
+
+function archiveGenerator(generatorId, archive) {
+  const reasonEl = document.getElementById('archive-reason');
+  const payload = { generator_id: generatorId, archive, reason: reasonEl ? reasonEl.value : undefined };
+  apiCall('generators-archive', { method: 'PATCH', body: JSON.stringify(payload) })
+    .then(() => { setStatus(archive ? 'Archived.' : 'Restored.', false); loadGenerators(); closeModal(); })
+    .catch(err => setStatus(err.message, true));
+}
+
+function deleteGenerator(generatorId) {
+  const sure = confirm('This permanently deletes this generator and its service history. This cannot be undone. Are you sure?');
+  if (!sure) return;
+  apiCall('generators-delete', { method: 'POST', body: JSON.stringify({ generator_id: generatorId, confirm: true }) })
+    .then(() => { setStatus('Deleted.', false); loadGenerators(); closeModal(); })
     .catch(err => setStatus(err.message, true));
 }
 
