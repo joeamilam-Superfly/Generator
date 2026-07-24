@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Isom Electric — Generator Service Tracker</title>
+<style>
+  :root {
+    --ink: #1a2332;
+    --ink-soft: #52606d;
+    --paper: #f6f7f9;
+    --line: #dde2e8;
+    --accent: #1f5f5b;
+    --accent-soft: #e4efee;
+    --danger: #b3261e;
+    --danger-soft: #fbe9e7;
+    --warn: #8a5a00;
+    --warn-soft: #fff2d9;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  header {
+    background: var(--ink);
+    color: white;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: 0.2px; }
+  header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 10px 24px 0;
+    background: white;
+    border-bottom: 1px solid var(--line);
+  }
+  nav button {
+    border: none;
+    background: none;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--ink-soft);
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  #login-screen {
+    max-width: 340px;
+    margin: 90px auto;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 28px;
+    text-align: center;
+  }
+  #login-screen h2 { margin-top: 0; font-size: 16px; }
+  #login-screen input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  #login-screen button, .btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 9px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #login-screen button:hover, .btn:hover { opacity: 0.9; }
+  #login-error { color: var(--danger); font-size: 13px; min-height: 18px; }
+
+  table { width: 100%; border-collapse: collapse; background: white; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--line); }
+  th { background: #fafbfc; font-weight: 600; color: var(--ink-soft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
+  tr:last-child td { border-bottom: none; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover { background: #fafbfc; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.clean { background: var(--accent-soft); color: var(--accent); }
+  .badge.needs_serial { background: var(--warn-soft); color: var(--warn); }
+  .badge.serial_conflict { background: var(--danger-soft); color: var(--danger); }
+
+  .filters { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
+  .filters select, .filters input { padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; font-weight: 600; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px;
+  }
+  form.card { background: white; border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; max-width: 640px; }
+
+  #detail-modal {
+    display: none; position: fixed; inset: 0; background: rgba(20,25,32,0.5);
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  #detail-modal.active { display: flex; }
+  #detail-modal .box {
+    background: white; border-radius: var(--radius); padding: 24px; width: 560px; max-height: 85vh; overflow-y: auto;
+  }
+  #detail-modal .box h3 { margin-top: 0; }
+  #detail-modal .close { float: right; cursor: pointer; color: var(--ink-soft); font-size: 20px; line-height: 1; }
+  #status-msg { font-size: 13px; margin-top: 10px; min-height: 16px; }
+  #status-msg.error { color: var(--danger); }
+  #status-msg.ok { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h2>Generator Service Tracker</h2>
+  <input type="password" id="login-token" placeholder="Access code">
+  <button onclick="doLogin()">Enter</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="app" style="display:none;">
+  <header>
+    <div>
+      <h1>Generator Service Tracker</h1>
+      <div class="sub">Isom Electric</div>
+    </div>
+  </header>
+  <nav>
+    <button class="active" data-panel="list-panel" onclick="switchPanel('list-panel', this)">Generators</button>
+    <button data-panel="add-panel" onclick="switchPanel('add-panel', this)">Add Install</button>
+  </nav>
+
+  <main>
+    <div id="list-panel" class="panel active">
+      <div class="filters">
+        <select id="filter-status" onchange="renderList()">
+          <option value="">All statuses</option>
+          <option value="clean">Clean</option>
+          <option value="needs_serial">Needs serial</option>
+          <option value="serial_conflict">Serial conflict</option>
+        </select>
+        <input type="text" id="filter-search" placeholder="Search name, serial, address..." oninput="renderList()">
+        <button class="btn" onclick="loadGenerators()">Refresh</button>
+      </div>
+      <table id="gen-table">
+        <thead>
+          <tr><th>Flag</th><th>Customer</th><th>Serial #</th><th>Model</th><th>Location</th><th>Install date</th><th>Last service</th></tr>
+        </thead>
+        <tbody id="gen-tbody"><tr><td colspan="7">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <div id="add-panel" class="panel">
+      <form class="card" onsubmit="return submitNewInstall(event)">
+        <div class="field-grid">
+          <div class="field"><label>First name</label><input name="first_name"></div>
+          <div class="field"><label>Last name</label><input name="last_name"></div>
+        </div>
+        <div class="field"><label>Business name (if applicable)</label><input name="business_name"></div>
+        <div class="field"><label>Phone</label><input name="phone" placeholder="864-555-1234"></div>
+        <div class="field"><label>Generator location / address</label><input name="location_address"></div>
+        <div class="field-grid">
+          <div class="field"><label>Install date</label><input type="date" name="install_date"></div>
+          <div class="field"><label>Model</label><input name="model"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Generator serial number</label><input name="serial_number"></div>
+          <div class="field"><label>ATS serial number</label><input name="ats_serial_number"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Oil filter part</label><input name="oil_filter_part"></div>
+          <div class="field"><label>Oil capacity</label><input name="oil_capacity"></div>
+        </div>
+        <button type="submit" class="btn">Save new install</button>
+        <div id="add-status" style="margin-top:10px; font-size:13px;"></div>
+      </form>
+    </div>
+  </main>
+</div>
+
+<div id="detail-modal">
+  <div class="box">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+let TOKEN = sessionStorage.getItem('gen_app_token') || '';
+let GENERATORS = [];
+
+function apiCall(path, opts = {}) {
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-app-token': TOKEN }, opts.headers || {});
+  return fetch('/api/' + path, opts).then(async r => {
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  });
+}
+
+function doLogin() {
+  TOKEN = document.getElementById('login-token').value;
+  apiCall('generators-list').then(() => {
+    sessionStorage.setItem('gen_app_token', TOKEN);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadGenerators();
+  }).catch(err => {
+    document.getElementById('login-error').textContent = 'Incorrect access code.';
+  });
+}
+
+if (TOKEN) {
+  apiCall('generators-list').then(data => {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    GENERATORS = data.generators;
+    renderList();
+  }).catch(() => { sessionStorage.removeItem('gen_app_token'); });
+}
+
+function switchPanel(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+function loadGenerators() {
+  document.getElementById('gen-tbody').innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
+  apiCall('generators-list').then(data => {
+    GENERATORS = data.generators;
+    renderList();
+  }).catch(err => {
+    document.getElementById('gen-tbody').innerHTML = `<tr><td colspan="7">Error: ${escapeHtml(err.message)}</td></tr>`;
+  });
+}
+
+function badgeLabel(status) {
+  if (status === 'needs_serial') return 'Needs serial';
+  if (status === 'serial_conflict') return 'Serial conflict';
+  return 'Clean';
+}
+
+function renderList() {
+  const statusFilter = document.getElementById('filter-status').value;
+  const search = document.getElementById('filter-search').value.toLowerCase();
+
+  let rows = GENERATORS.filter(g => {
+    if (statusFilter && g.review_status !== statusFilter) return false;
+    if (search) {
+      const c = g.customers || {};
+      const loc = g.job_locations || {};
+      const hay = [c.first_name, c.last_name, c.business_name, g.serial_number, loc.address].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const tbody = document.getElementById('gen-tbody');
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">No generators match.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(g => {
+    const c = g.customers || {};
+    const loc = g.job_locations || {};
+    const customerName = c.business_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '(unknown)';
+    return `<tr class="clickable" onclick="openDetail('${g.id}')">
+      <td><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></td>
+      <td>${escapeHtml(customerName)}</td>
+      <td>${escapeHtml(g.serial_number || '—')}</td>
+      <td>${escapeHtml(g.model || '—')}</td>
+      <td>${escapeHtml(loc.address || '—')}</td>
+      <td>${g.install_date || '—'}</td>
+      <td>${escapeHtml(g.run_hours != null ? g.run_hours + ' hrs' : '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+function openDetail(id) {
+  const g = GENERATORS.find(x => x.id === id);
+  if (!g) return;
+  const c = g.customers || {};
+  const loc = g.job_locations || {};
+  const customerName = c.business_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '(unknown)';
+
+  document.getElementById('modal-body').innerHTML = `
+    <h3>${escapeHtml(customerName)}</h3>
+    <p><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></p>
+    <p><b>Serial:</b> ${escapeHtml(g.serial_number || '—')} &nbsp; <b>ATS:</b> ${escapeHtml(g.ats_serial_number || '—')}</p>
+    <p><b>Model:</b> ${escapeHtml(g.model || '—')} &nbsp; <b>Install date:</b> ${g.install_date || '—'}</p>
+    <p><b>Location:</b> ${escapeHtml(loc.address || '—')}</p>
+    <p><b>Phone:</b> ${escapeHtml(c.phone || '—')}</p>
+    ${g.review_notes ? `<p><b>Review notes:</b> ${escapeHtml(g.review_notes)}</p>` : ''}
+
+    <hr>
+    <h4>Log a service work order</h4>
+    <div class="field"><label>Service date</label><input type="date" id="wo-date"></div>
+    <div class="field"><label>Technician</label><input id="wo-tech"></div>
+    <div class="field"><label>Run hours at service</label><input type="number" id="wo-hours"></div>
+    <div class="field"><label>Notes</label><textarea id="wo-notes" rows="2"></textarea></div>
+    <button class="btn" onclick="logWorkOrder('${g.id}')">Save work order</button>
+
+    ${g.review_status !== 'clean' ? `
+    <hr>
+    <h4>Resolve flag</h4>
+    <div class="field"><label>Correct serial number (if fixing a data error)</label><input id="fix-serial" value="${escapeHtml(g.serial_number || '')}"></div>
+    <div class="field"><label>Review note (explain what you found)</label><textarea id="fix-notes" rows="2"></textarea></div>
+    <button class="btn" onclick="resolveFlag('${g.id}', true)">Mark resolved</button>
+    <button class="btn" style="background:#52606d" onclick="resolveFlag('${g.id}', false)">Save note only, keep flagged</button>
+    ` : ''}
+    <div id="status-msg"></div>
+  `;
+  document.getElementById('detail-modal').classList.add('active');
+}
+
+function closeModal() { document.getElementById('detail-modal').classList.remove('active'); }
+
+function logWorkOrder(generatorId) {
+  const payload = {
+    generator_id: generatorId,
+    service_date: document.getElementById('wo-date').value,
+    technician: document.getElementById('wo-tech').value,
+    run_hours_at_service: document.getElementById('wo-hours').value || null,
+    notes: document.getElementById('wo-notes').value,
+  };
+  if (!payload.service_date) {
+    setStatus('Service date is required.', true);
+    return;
+  }
+  apiCall('work-orders-create', { method: 'POST', body: JSON.stringify(payload) })
+    .then(() => { setStatus('Work order saved.', false); loadGenerators(); })
+    .catch(err => setStatus(err.message, true));
+}
+
+function resolveFlag(generatorId, markResolved) {
+  const payload = {
+    generator_id: generatorId,
+    updates: { serial_number: document.getElementById('fix-serial').value },
+    review_notes: document.getElementById('fix-notes').value,
+    mark_resolved: markResolved,
+  };
+  apiCall('generators-resolve', { method: 'PATCH', body: JSON.stringify(payload) })
+    .then(() => { setStatus('Saved.', false); loadGenerators(); closeModal(); })
+    .catch(err => setStatus(err.message, true));
+}
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = isError ? 'error' : 'ok';
+}
+
+function submitNewInstall(evt) {
+  evt.preventDefault();
+  const form = evt.target;
+  const payload = Object.fromEntries(new FormData(form).entries());
+  apiCall('generators-create', { method: 'POST', body: JSON.stringify(payload) })
+    .then(() => {
+      document.getElementById('add-status').textContent = 'Saved.';
+      form.reset();
+      loadGenerators();
+    })
+    .catch(err => { document.getElementById('add-status').textContent = 'Error: ' + err.message; });
+  return false;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+</script>
+</body>
+</html>
