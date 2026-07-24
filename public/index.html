@@ -142,6 +142,7 @@
   </header>
   <nav>
     <button class="active" data-panel="list-panel" onclick="switchPanel('list-panel', this)">Generators</button>
+    <button data-panel="search-panel" onclick="switchPanel('search-panel', this)">Search</button>
     <button data-panel="add-panel" onclick="switchPanel('add-panel', this)">Add Install</button>
   </nav>
 
@@ -163,6 +164,50 @@
         </thead>
         <tbody id="gen-tbody"><tr><td colspan="7">Loading...</td></tr></tbody>
       </table>
+    </div>
+
+    <div id="search-panel" class="panel">
+      <form class="card" id="search-form-el" style="max-width:100%;" onsubmit="return runSearch(event)">
+        <div class="field-grid">
+          <div class="field"><label>Install date from</label><input type="date" name="install_date_from"></div>
+          <div class="field"><label>Install date to</label><input type="date" name="install_date_to"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Last service date from</label><input type="date" name="last_service_from"></div>
+          <div class="field"><label>Last service date to</label><input type="date" name="last_service_to"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Customer name contains</label><input name="customer_search" placeholder="last, first, or business name"></div>
+          <div class="field"><label>Serial number contains</label><input name="serial_search"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Model contains</label><input name="model"></div>
+          <div class="field"><label>Address/city contains</label><input name="location_search"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Review status</label>
+            <select name="review_status">
+              <option value="">Any</option>
+              <option value="clean">Clean</option>
+              <option value="needs_serial">Needs serial</option>
+              <option value="serial_conflict">Serial conflict</option>
+            </select>
+          </div>
+          <div class="field"><label>Phone on file</label>
+            <select name="has_phone">
+              <option value="">Any</option>
+              <option value="yes">Has a phone number</option>
+              <option value="no">Missing phone number</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label><input type="checkbox" name="never_serviced" value="yes" style="width:auto; display:inline-block; margin-right:6px;">Never serviced (no work order on file)</label>
+        </div>
+        <button type="submit" class="btn">Search</button>
+        <button type="button" class="btn" style="background:#52606d" onclick="document.getElementById('search-form-el').reset(); document.getElementById('search-results').innerHTML='';">Clear filters</button>
+      </form>
+      <div id="search-results" style="margin-top:16px;"></div>
     </div>
 
     <div id="add-panel" class="panel">
@@ -273,9 +318,7 @@ function renderList() {
   let rows = GENERATORS.filter(g => {
     if (statusFilter && g.review_status !== statusFilter) return false;
     if (search) {
-      const c = g.customers || {};
-      const loc = g.job_locations || {};
-      const hay = [c.first_name, c.last_name, c.business_name, g.serial_number, loc.address].join(' ').toLowerCase();
+      const hay = [g.first_name, g.last_name, g.business_name, g.serial_number, g.location_address].join(' ').toLowerCase();
       if (!hay.includes(search)) return false;
     }
     return true;
@@ -287,17 +330,15 @@ function renderList() {
     return;
   }
   tbody.innerHTML = rows.map(g => {
-    const c = g.customers || {};
-    const loc = g.job_locations || {};
-    const customerName = c.business_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '(unknown)';
+    const customerName = g.business_name || `${g.first_name || ''} ${g.last_name || ''}`.trim() || '(unknown)';
     return `<tr class="clickable" onclick="openDetail('${g.id}')">
       <td><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(g.serial_number || '—')}</td>
       <td>${escapeHtml(g.model || '—')}</td>
-      <td>${escapeHtml(loc.address || '—')}</td>
+      <td>${escapeHtml(g.location_address || '—')}</td>
       <td>${g.install_date || '—'}</td>
-      <td>${escapeHtml(g.run_hours != null ? g.run_hours + ' hrs' : '—')}</td>
+      <td>${g.last_service_date || '—'}</td>
     </tr>`;
   }).join('');
 }
@@ -305,17 +346,16 @@ function renderList() {
 function openDetail(id) {
   const g = GENERATORS.find(x => x.id === id);
   if (!g) return;
-  const c = g.customers || {};
-  const loc = g.job_locations || {};
-  const customerName = c.business_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '(unknown)';
+  const customerName = g.business_name || `${g.first_name || ''} ${g.last_name || ''}`.trim() || '(unknown)';
 
   document.getElementById('modal-body').innerHTML = `
     <h3>${escapeHtml(customerName)}</h3>
     <p><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></p>
     <p><b>Serial:</b> ${escapeHtml(g.serial_number || '—')} &nbsp; <b>ATS:</b> ${escapeHtml(g.ats_serial_number || '—')}</p>
     <p><b>Model:</b> ${escapeHtml(g.model || '—')} &nbsp; <b>Install date:</b> ${g.install_date || '—'}</p>
-    <p><b>Location:</b> ${escapeHtml(loc.address || '—')}</p>
-    <p><b>Phone:</b> ${escapeHtml(c.phone || '—')}</p>
+    <p><b>Location:</b> ${escapeHtml(g.location_address || '—')}</p>
+    <p><b>Last service:</b> ${g.last_service_date || 'Never recorded'} &nbsp; <b>Run hours:</b> ${g.run_hours != null ? g.run_hours : '—'}</p>
+    <p><b>Phone:</b> ${escapeHtml(g.phone || '—')}</p>
     ${g.review_notes ? `<p><b>Review notes:</b> ${escapeHtml(g.review_notes)}</p>` : ''}
 
     <hr>
@@ -389,6 +429,55 @@ function submitNewInstall(evt) {
     })
     .catch(err => { document.getElementById('add-status').textContent = 'Error: ' + err.message; });
   return false;
+}
+
+function runSearch(evt) {
+  evt.preventDefault();
+  const form = evt.target;
+  const params = new URLSearchParams();
+  new FormData(form).forEach((value, key) => {
+    if (value) params.set(key, value);
+  });
+
+  const resultsEl = document.getElementById('search-results');
+  resultsEl.innerHTML = 'Searching...';
+
+  fetch('/api/generators-search?' + params.toString(), { headers: { 'x-app-token': TOKEN } })
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Search failed');
+      renderSearchResults(data.results);
+    })
+    .catch(err => { resultsEl.innerHTML = 'Error: ' + escapeHtml(err.message); });
+
+  return false;
+}
+
+function renderSearchResults(results) {
+  const resultsEl = document.getElementById('search-results');
+  if (!results.length) {
+    resultsEl.innerHTML = '<p>No generators match those filters.</p>';
+    return;
+  }
+  resultsEl.innerHTML = `<p>${results.length} result${results.length === 1 ? '' : 's'}</p>
+    <table>
+      <thead><tr><th>Flag</th><th>Customer</th><th>Serial #</th><th>Model</th><th>Address</th><th>Install date</th><th>Last service</th><th>Phone</th></tr></thead>
+      <tbody>
+        ${results.map(g => {
+          const customerName = g.business_name || `${g.first_name || ''} ${g.last_name || ''}`.trim() || '(unknown)';
+          return `<tr>
+            <td><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></td>
+            <td>${escapeHtml(customerName)}</td>
+            <td>${escapeHtml(g.serial_number || '—')}</td>
+            <td>${escapeHtml(g.model || '—')}</td>
+            <td>${escapeHtml(g.location_address || '—')}</td>
+            <td>${g.install_date || '—'}</td>
+            <td>${g.last_service_date || '—'}</td>
+            <td>${escapeHtml(g.phone || '—')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
 }
 
 function escapeHtml(str) {
