@@ -311,6 +311,21 @@ function badgeLabel(status) {
   return 'Clean';
 }
 
+// Distinct colors cycled per conflict group so multiple simultaneous
+// conflicts are visually distinguishable from each other, not just
+// flagged red as a category.
+const CONFLICT_COLORS = ['#fcebea', '#fdf3d8', '#e8f0fc', '#eee7fb', '#e3f6ee', '#fbe8f2'];
+const CONFLICT_BORDER_COLORS = ['#d9534f', '#c9a227', '#4a7fd1', '#8562c4', '#3f9e79', '#c94f8c'];
+const conflictColorMap = {};
+function colorForConflictGroup(groupId) {
+  if (!groupId) return null;
+  if (!(groupId in conflictColorMap)) {
+    const idx = Object.keys(conflictColorMap).length % CONFLICT_COLORS.length;
+    conflictColorMap[groupId] = { bg: CONFLICT_COLORS[idx], border: CONFLICT_BORDER_COLORS[idx] };
+  }
+  return conflictColorMap[groupId];
+}
+
 function renderList() {
   const statusFilter = document.getElementById('filter-status').value;
   const search = document.getElementById('filter-search').value.toLowerCase();
@@ -324,6 +339,17 @@ function renderList() {
     return true;
   });
 
+  // sort so rows sharing a conflict_group_id land next to each other,
+  // while still keeping flagged rows near the top overall
+  rows = rows.slice().sort((a, b) => {
+    const prio = (b.review_priority || '').localeCompare(a.review_priority || '');
+    if (prio !== 0) return prio;
+    const groupA = a.conflict_group_id || '';
+    const groupB = b.conflict_group_id || '';
+    if (groupA !== groupB) return groupA.localeCompare(groupB);
+    return (b.install_date || '').localeCompare(a.install_date || '');
+  });
+
   const tbody = document.getElementById('gen-tbody');
   if (rows.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7">No generators match.</td></tr>';
@@ -331,7 +357,9 @@ function renderList() {
   }
   tbody.innerHTML = rows.map(g => {
     const customerName = g.business_name || `${g.first_name || ''} ${g.last_name || ''}`.trim() || '(unknown)';
-    return `<tr class="clickable" onclick="openDetail('${g.id}')">
+    const conflictColor = colorForConflictGroup(g.conflict_group_id);
+    const rowStyle = conflictColor ? ` style="background:${conflictColor.bg}; border-left:4px solid ${conflictColor.border};"` : '';
+    return `<tr class="clickable"${rowStyle} onclick="openDetail('${g.id}')">
       <td><span class="badge ${g.review_status}">${badgeLabel(g.review_status)}</span></td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(g.serial_number || '—')}</td>
