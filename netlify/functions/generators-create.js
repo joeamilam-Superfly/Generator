@@ -16,7 +16,7 @@ exports.handler = async (event) => {
 
   const {
     first_name, last_name, business_name, phone,
-    location_address, install_date, serial_number, ats_serial_number,
+    location_address, job_location_id: explicitLocationId, install_date, serial_number, ats_serial_number,
     model, oil_filter_part, oil_capacity, run_hours,
   } = body;
 
@@ -55,9 +55,14 @@ exports.handler = async (event) => {
       customerId = newCustomer.id;
     }
 
-    // find-or-create job_location, scoped to Isom Electric
+    // find-or-create job_location, scoped to Isom Electric.
+    // If an explicit job_location_id was passed (picked from the location
+    // search dropdown), use it directly rather than re-matching on address,
+    // that's the deliberate "add a second generator to this exact site" path.
     let jobLocationId = null;
-    if (location_address) {
+    if (explicitLocationId) {
+      jobLocationId = explicitLocationId;
+    } else if (location_address) {
       const { data: existingLocations, error: locFindErr } = await supabase
         .from('job_locations')
         .select('id')
