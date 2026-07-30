@@ -20,6 +20,7 @@ exports.handler = async (event) => {
     if (p.service_date_to) query = query.lte('service_date', p.service_date_to);
     if (p.technician) query = query.ilike('technician', `%${p.technician}%`);
     if (p.serial_search) query = query.ilike('serial_number', `%${p.serial_search}%`);
+    if (p.wo_number_search) query = query.ilike('work_order_number', `%${p.wo_number_search}%`);
 
     if (p.customer_search) {
       const term = p.customer_search.replace(/[%_]/g, '');
