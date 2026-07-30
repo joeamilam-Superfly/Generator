@@ -144,6 +144,7 @@
   <nav>
     <button class="active" data-panel="list-panel" onclick="switchPanel('list-panel', this)">Generators</button>
     <button data-panel="search-panel" onclick="switchPanel('search-panel', this)">Search</button>
+    <button data-panel="wo-search-panel" onclick="switchPanel('wo-search-panel', this)">Work Orders</button>
     <button data-panel="add-panel" onclick="switchPanel('add-panel', this)">Add Install</button>
   </nav>
 
@@ -212,6 +213,26 @@
         <button type="button" class="btn" style="background:#52606d" onclick="document.getElementById('search-form-el').reset(); document.getElementById('search-results').innerHTML='';">Clear filters</button>
       </form>
       <div id="search-results" style="margin-top:16px;"></div>
+    </div>
+
+    <div id="wo-search-panel" class="panel">
+      <form class="card" id="wo-search-form-el" style="max-width:100%;" onsubmit="return runWorkOrderSearch(event)">
+        <div class="field-grid">
+          <div class="field"><label>Service date from</label><input type="date" name="service_date_from"></div>
+          <div class="field"><label>Service date to</label><input type="date" name="service_date_to"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Technician contains</label><input name="technician"></div>
+          <div class="field"><label>Customer name contains</label><input name="customer_search"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Serial number contains</label><input name="serial_search"></div>
+          <div class="field"><label>Notes/parts contain</label><input name="notes_search"></div>
+        </div>
+        <button type="submit" class="btn">Search work orders</button>
+        <button type="button" class="btn" style="background:#52606d" onclick="document.getElementById('wo-search-form-el').reset(); document.getElementById('wo-search-results').innerHTML='';">Clear filters</button>
+      </form>
+      <div id="wo-search-results" style="margin-top:16px;"></div>
     </div>
 
     <div id="add-panel" class="panel">
@@ -429,6 +450,8 @@ function openDetail(id) {
     <div class="field"><label>Notes</label><textarea id="wo-notes" rows="2"></textarea></div>
     <button class="btn" onclick="logWorkOrder('${g.id}')">Save work order</button>
 
+    <div id="wo-history" style="margin-top:14px;">Loading work order history...</div>
+
     ${g.review_status !== 'clean' ? `
     <hr>
     <h4>Resolve flag</h4>
@@ -450,6 +473,25 @@ function openDetail(id) {
     <div id="status-msg"></div>
   `;
   document.getElementById('detail-modal').classList.add('active');
+  loadWorkOrderHistory(g.id);
+}
+
+function loadWorkOrderHistory(generatorId) {
+  const el = document.getElementById('wo-history');
+  if (!el) return;
+  apiCall('work-orders-list?generator_id=' + encodeURIComponent(generatorId))
+    .then(data => {
+      if (!data.work_orders.length) {
+        el.innerHTML = '<p style="color:#52606d; font-size:13px;">No work orders logged yet.</p>';
+        return;
+      }
+      el.innerHTML = '<h4>Work order history</h4>' + data.work_orders.map(wo => `
+        <div style="border-bottom:1px solid var(--line); padding:8px 0; font-size:13px;">
+          <b>${wo.service_date || '—'}</b>${wo.technician ? ' — ' + escapeHtml(wo.technician) : ''}${wo.run_hours_at_service != null ? ' — ' + wo.run_hours_at_service + ' hrs' : ''}
+          ${wo.notes ? `<div style="color:#52606d;">${escapeHtml(wo.notes)}</div>` : ''}
+        </div>`).join('');
+    })
+    .catch(err => { el.innerHTML = 'Error loading history: ' + escapeHtml(err.message); });
 }
 
 function closeModal() { document.getElementById('detail-modal').classList.remove('active'); }
@@ -467,7 +509,15 @@ function logWorkOrder(generatorId) {
     return;
   }
   apiCall('work-orders-create', { method: 'POST', body: JSON.stringify(payload) })
-    .then(() => { setStatus('Work order saved.', false); loadGenerators(); })
+    .then(() => {
+      setStatus('Work order saved.', false);
+      loadGenerators();
+      loadWorkOrderHistory(generatorId);
+      document.getElementById('wo-date').value = '';
+      document.getElementById('wo-tech').value = '';
+      document.getElementById('wo-hours').value = '';
+      document.getElementById('wo-notes').value = '';
+    })
     .catch(err => setStatus(err.message, true));
 }
 
@@ -559,6 +609,54 @@ function submitNewInstall(evt) {
     })
     .catch(err => { document.getElementById('add-status').textContent = 'Error: ' + err.message; });
   return false;
+}
+
+function runWorkOrderSearch(evt) {
+  evt.preventDefault();
+  const form = evt.target;
+  const params = new URLSearchParams();
+  new FormData(form).forEach((value, key) => { if (value) params.set(key, value); });
+
+  const resultsEl = document.getElementById('wo-search-results');
+  resultsEl.innerHTML = 'Searching...';
+
+  fetch('/api/work-orders-search?' + params.toString(), { headers: { 'x-app-token': TOKEN } })
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Search failed');
+      renderWorkOrderResults(data.results);
+    })
+    .catch(err => { resultsEl.innerHTML = 'Error: ' + escapeHtml(err.message); });
+
+  return false;
+}
+
+function renderWorkOrderResults(results) {
+  const resultsEl = document.getElementById('wo-search-results');
+  if (!results.length) {
+    resultsEl.innerHTML = '<p>No work orders match those filters.</p>';
+    return;
+  }
+  resultsEl.innerHTML = `<p>${results.length} result${results.length === 1 ? '' : 's'}</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Service date</th><th>Customer</th><th>Serial #</th><th>Technician</th><th>Hours</th><th>Notes</th><th>Address</th></tr></thead>
+      <tbody>
+        ${results.map(wo => {
+          const customerName = wo.business_name || `${wo.first_name || ''} ${wo.last_name || ''}`.trim() || '(unknown)';
+          return `<tr>
+            <td>${wo.service_date || '—'}</td>
+            <td>${escapeHtml(customerName)}</td>
+            <td>${escapeHtml(wo.serial_number || '—')}</td>
+            <td>${escapeHtml(wo.technician || '—')}</td>
+            <td>${wo.run_hours_at_service != null ? wo.run_hours_at_service : '—'}</td>
+            <td>${escapeHtml(wo.notes || '—')}</td>
+            <td>${escapeHtml(wo.location_address || '—')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>`;
 }
 
 function runSearch(evt) {
