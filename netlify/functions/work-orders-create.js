@@ -12,7 +12,7 @@ exports.handler = async (event) => {
     return jsonResponse(400, { error: 'Invalid JSON body' });
   }
 
-  const { generator_id, service_date, technician, service_type, run_hours_at_service, parts_used, notes } = body;
+  const { generator_id, service_date, technician, service_type, run_hours_at_service, parts_used, notes, work_order_number } = body;
 
   if (!generator_id || !service_date) {
     return jsonResponse(400, { error: 'generator_id and service_date are required.' });
@@ -31,6 +31,7 @@ exports.handler = async (event) => {
         run_hours_at_service: run_hours_at_service || null,
         parts_used: parts_used || null,
         notes: notes || null,
+        work_order_number: work_order_number || null,
       })
       .select()
       .single();
