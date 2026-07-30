@@ -28,6 +28,7 @@ exports.handler = async (event) => {
     if (p.location_search) query = query.ilike('location_address', `%${p.location_search}%`);
     if (p.serial_search) query = query.ilike('serial_number', `%${p.serial_search}%`);
     if (p.review_status) query = query.eq('review_status', p.review_status);
+    if (p.job_location_id) query = query.eq('job_location_id', p.job_location_id);
     if (p.has_phone === 'yes') query = query.not('phone', 'is', null);
     if (p.has_phone === 'no') query = query.is('phone', null);
     if (p.never_serviced === 'yes') query = query.is('last_service_date', null);
