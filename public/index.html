@@ -226,7 +226,10 @@
           <div class="field"><label>Customer name contains</label><input name="customer_search"></div>
         </div>
         <div class="field-grid">
+          <div class="field"><label>Work order # contains</label><input name="wo_number_search"></div>
           <div class="field"><label>Serial number contains</label><input name="serial_search"></div>
+        </div>
+        <div class="field-grid">
           <div class="field"><label>Notes/parts contain</label><input name="notes_search"></div>
         </div>
         <button type="submit" class="btn">Search work orders</button>
@@ -444,6 +447,7 @@ function openDetail(id) {
 
     <hr>
     <h4>Log a service work order</h4>
+    <div class="field"><label>Work order #</label><input id="wo-number"></div>
     <div class="field"><label>Service date</label><input type="date" id="wo-date"></div>
     <div class="field"><label>Technician</label><input id="wo-tech"></div>
     <div class="field"><label>Run hours at service</label><input type="number" id="wo-hours"></div>
@@ -487,7 +491,7 @@ function loadWorkOrderHistory(generatorId) {
       }
       el.innerHTML = '<h4>Work order history</h4>' + data.work_orders.map(wo => `
         <div style="border-bottom:1px solid var(--line); padding:8px 0; font-size:13px;">
-          <b>${wo.service_date || '—'}</b>${wo.technician ? ' — ' + escapeHtml(wo.technician) : ''}${wo.run_hours_at_service != null ? ' — ' + wo.run_hours_at_service + ' hrs' : ''}
+          <b>${wo.work_order_number ? 'WO# ' + escapeHtml(wo.work_order_number) + ' — ' : ''}${wo.service_date || '—'}</b>${wo.technician ? ' — ' + escapeHtml(wo.technician) : ''}${wo.run_hours_at_service != null ? ' — ' + wo.run_hours_at_service + ' hrs' : ''}
           ${wo.notes ? `<div style="color:#52606d;">${escapeHtml(wo.notes)}</div>` : ''}
         </div>`).join('');
     })
@@ -499,6 +503,7 @@ function closeModal() { document.getElementById('detail-modal').classList.remove
 function logWorkOrder(generatorId) {
   const payload = {
     generator_id: generatorId,
+    work_order_number: document.getElementById('wo-number').value,
     service_date: document.getElementById('wo-date').value,
     technician: document.getElementById('wo-tech').value,
     run_hours_at_service: document.getElementById('wo-hours').value || null,
@@ -513,6 +518,7 @@ function logWorkOrder(generatorId) {
       setStatus('Work order saved.', false);
       loadGenerators();
       loadWorkOrderHistory(generatorId);
+      document.getElementById('wo-number').value = '';
       document.getElementById('wo-date').value = '';
       document.getElementById('wo-tech').value = '';
       document.getElementById('wo-hours').value = '';
@@ -640,11 +646,12 @@ function renderWorkOrderResults(results) {
   resultsEl.innerHTML = `<p>${results.length} result${results.length === 1 ? '' : 's'}</p>
     <div class="table-wrap">
     <table>
-      <thead><tr><th>Service date</th><th>Customer</th><th>Serial #</th><th>Technician</th><th>Hours</th><th>Notes</th><th>Address</th></tr></thead>
+      <thead><tr><th>WO #</th><th>Service date</th><th>Customer</th><th>Serial #</th><th>Technician</th><th>Hours</th><th>Notes</th><th>Address</th></tr></thead>
       <tbody>
         ${results.map(wo => {
           const customerName = wo.business_name || `${wo.first_name || ''} ${wo.last_name || ''}`.trim() || '(unknown)';
           return `<tr>
+            <td>${escapeHtml(wo.work_order_number || '—')}</td>
             <td>${wo.service_date || '—'}</td>
             <td>${escapeHtml(customerName)}</td>
             <td>${escapeHtml(wo.serial_number || '—')}</td>
