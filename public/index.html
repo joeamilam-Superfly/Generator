@@ -246,7 +246,13 @@
         </div>
         <div class="field"><label>Business name (if applicable)</label><input name="business_name"></div>
         <div class="field"><label>Phone</label><input name="phone" placeholder="864-555-1234"></div>
-        <div class="field"><label>Generator location / address</label><input name="location_address"></div>
+        <div class="field">
+          <label>Generator location / address</label>
+          <input name="location_address" id="add-install-address" oninput="searchLocations(this.value)" autocomplete="off" placeholder="Start typing an address...">
+          <div id="location-suggestions" style="border:1px solid var(--line); border-top:none; max-height:160px; overflow-y:auto; display:none; background:white;"></div>
+          <input type="hidden" name="job_location_id" id="add-install-location-id">
+          <div id="selected-location-note" style="font-size:12px; color:var(--accent); margin-top:4px;"></div>
+        </div>
         <div class="field-grid">
           <div class="field"><label>Install date</label><input type="date" name="install_date"></div>
           <div class="field"><label>Model</label><input name="model"></div>
@@ -455,6 +461,7 @@ function openDetail(id) {
     <button class="btn" onclick="logWorkOrder('${g.id}')">Save work order</button>
 
     <div id="wo-history" style="margin-top:14px;">Loading work order history...</div>
+    <div id="sibling-generators" style="margin-top:14px;"></div>
 
     ${g.review_status !== 'clean' ? `
     <hr>
@@ -478,6 +485,28 @@ function openDetail(id) {
   `;
   document.getElementById('detail-modal').classList.add('active');
   loadWorkOrderHistory(g.id);
+  loadSiblingGenerators(g);
+}
+
+function loadSiblingGenerators(g) {
+  const el = document.getElementById('sibling-generators');
+  if (!g.job_location_id) { el.innerHTML = ''; return; }
+  el.innerHTML = 'Checking for other generators at this site...';
+  fetch('/api/generators-search?job_location_id=' + encodeURIComponent(g.job_location_id), { headers: { 'x-app-token': TOKEN } })
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Lookup failed');
+      const others = data.results.filter(x => x.id !== g.id);
+      if (!others.length) { el.innerHTML = ''; return; }
+      el.innerHTML = `<hr><h4>Other generators at this site (${others.length})</h4>` + others.map(o => {
+        const name = o.business_name || `${o.first_name || ''} ${o.last_name || ''}`.trim() || '(unknown)';
+        return `<div style="padding:6px 0; font-size:13px; border-bottom:1px solid var(--line); cursor:pointer;" onclick="openDetail('${o.id}')">
+          <b>${escapeHtml(o.serial_number || 'No serial')}</b> — ${escapeHtml(o.model || 'unknown model')} — ${escapeHtml(name)}
+          <span class="badge ${o.review_status}" style="margin-left:6px;">${badgeLabel(o.review_status)}</span>
+        </div>`;
+      }).join('');
+    })
+    .catch(() => { el.innerHTML = ''; });
 }
 
 function loadWorkOrderHistory(generatorId) {
@@ -603,6 +632,35 @@ function setStatus(msg, isError) {
   el.className = isError ? 'error' : 'ok';
 }
 
+let locationSearchTimer = null;
+function searchLocations(query) {
+  document.getElementById('add-install-location-id').value = '';
+  document.getElementById('selected-location-note').textContent = '';
+  clearTimeout(locationSearchTimer);
+  const suggEl = document.getElementById('location-suggestions');
+  if (!query || query.trim().length < 2) { suggEl.style.display = 'none'; return; }
+
+  locationSearchTimer = setTimeout(() => {
+    apiCall('job-locations-search?q=' + encodeURIComponent(query)).then(data => {
+      if (!data.locations.length) { suggEl.style.display = 'none'; return; }
+      suggEl.innerHTML = data.locations.map(loc =>
+        `<div style="padding:8px 10px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--line);"
+              onclick="selectLocation('${loc.id}', '${escapeHtml(loc.address || loc.name).replace(/'/g, "\\'")}')">
+          ${escapeHtml(loc.address || loc.name)}${loc.name && loc.address ? ' — ' + escapeHtml(loc.name) : ''}
+        </div>`
+      ).join('');
+      suggEl.style.display = 'block';
+    }).catch(() => { suggEl.style.display = 'none'; });
+  }, 300);
+}
+
+function selectLocation(id, address) {
+  document.getElementById('add-install-location-id').value = id;
+  document.getElementById('add-install-address').value = address;
+  document.getElementById('location-suggestions').style.display = 'none';
+  document.getElementById('selected-location-note').textContent = 'Adding an additional generator to this existing site.';
+}
+
 function submitNewInstall(evt) {
   evt.preventDefault();
   const form = evt.target;
@@ -611,6 +669,8 @@ function submitNewInstall(evt) {
     .then(() => {
       document.getElementById('add-status').textContent = 'Saved.';
       form.reset();
+      document.getElementById('selected-location-note').textContent = '';
+      document.getElementById('location-suggestions').style.display = 'none';
       loadGenerators();
     })
     .catch(err => { document.getElementById('add-status').textContent = 'Error: ' + err.message; });
