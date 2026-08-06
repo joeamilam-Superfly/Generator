@@ -164,7 +164,7 @@
       <div class="table-wrap">
       <table id="gen-table">
         <thead>
-          <tr><th>Flag</th><th>Customer</th><th>Serial #</th><th>Model</th><th>Location</th><th>Install date</th><th>Last service</th></tr>
+          <tr><th>Flag</th><th>Customer</th><th>Serial #</th><th>Model</th><th>Location</th><th>Install date</th><th id="last-service-header" style="cursor:pointer;" onclick="toggleLastServiceSort()">Last service <span id="last-service-sort-arrow"></span></th></tr>
         </thead>
         <tbody id="gen-tbody"><tr><td colspan="7">Loading...</td></tr></tbody>
       </table>
@@ -362,6 +362,17 @@ function colorForConflictGroup(groupId) {
   return conflictColorMap[groupId];
 }
 
+let lastServiceSort = null; // null = default order, 'asc', or 'desc'
+
+function toggleLastServiceSort() {
+  if (lastServiceSort === null) lastServiceSort = 'desc';
+  else if (lastServiceSort === 'desc') lastServiceSort = 'asc';
+  else lastServiceSort = null;
+  document.getElementById('last-service-sort-arrow').textContent =
+    lastServiceSort === 'desc' ? '▼' : lastServiceSort === 'asc' ? '▲' : '';
+  renderList();
+}
+
 function renderList() {
   const statusFilter = document.getElementById('filter-status').value;
   const search = document.getElementById('filter-search').value.toLowerCase();
@@ -376,8 +387,16 @@ function renderList() {
   });
 
   // sort so rows sharing a conflict_group_id land next to each other,
-  // while still keeping flagged rows near the top overall
+  // while still keeping flagged rows near the top overall — unless the
+  // person clicked "Last service" to sort chronologically instead
   rows = rows.slice().sort((a, b) => {
+    if (lastServiceSort) {
+      const aDate = a.last_service_date, bDate = b.last_service_date;
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return 1;  // never-serviced always sorts to the end
+      if (!bDate) return -1;
+      return lastServiceSort === 'asc' ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
+    }
     const prio = (b.review_priority || '').localeCompare(a.review_priority || '');
     if (prio !== 0) return prio;
     const groupA = a.conflict_group_id || '';
